@@ -32,71 +32,18 @@ class ImageHandler:
         new_im.save(file_path)
 
 
-class MazePointer:
-
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def get_endpoints(matrix):
-        endpoints = []
-        for y, i in enumerate(matrix):
-            for x, j in enumerate(i):
-                if y == 0 or y == len(matrix) - 1 or x == 0 or x == len(i) - 1:
-                    if j == 1:
-                        endpoints.append([y, x])
-        return endpoints
-
-    @staticmethod
-    def draw_pivots(matrix):
-        pivots = []
-
-        for y, i in enumerate(matrix):
-            for x, j in enumerate(i):
-                if not x == 0 and not x == len(i)-1 and not y == 0 and not y == len(matrix)-1:
-                    if j > 0:
-                        pivot = 0
-                        if matrix[y][x-1] and not matrix[y][x+1]:
-                            pivot += 1
-                        elif matrix[y][x+1] and not matrix[y][x-1]:
-                            pivot += 1
-                        elif matrix[y+1][x] and not matrix[y-1][x]:
-                            pivot += 1
-                        elif matrix[y-1][x] and not matrix[y+1][x]:
-                            pivot += 1
-
-                        if pivot >= 1:
-                            pivots.append([y, x])
-        return pivots
-
-
-class MazeWalk:
-    def __init__(self, maze, endpoints, pivots):
+class MazePathfinder:
+    def __init__(self, maze):
 
         self.maze = maze
-        self.start = endpoints[0]
-        self.end = endpoints[1]
-        self.position = self.start
+        self.width, self.height = len(self.maze[0]), len(self.maze)
+
+        self.endpoints = self.get_endpoints()
+
         self.visited = []
-        self.pivots = pivots
-        self.pivots.extend(endpoints)
+
+        self.pivots = []
         self.all_nodes = []
-
-        for pivot in self.pivots:
-            self.all_nodes.append(self.Node(x=pivot[1], y=pivot[0], maze=self.maze, all_pivots=self.pivots))
-
-        self.start = self.Node(x=self.start[1], y=self.start[0], maze=self.maze, all_pivots=self.pivots)
-        self.end = self.Node(x=self.end[1], y=self.end[0], maze=self.maze, all_pivots=self.pivots)
-
-        self.all_nodes.extend([self.start, self.end])
-
-        for node in self.all_nodes:
-            for idx, n in enumerate(node.neighbours):
-                for second_node in self.all_nodes:
-                    if n == [second_node.y, second_node.x]:
-                        node.neighbours[idx] = second_node
-
-        self.visited.append(self.start)
 
     class Node:
 
@@ -182,6 +129,71 @@ class MazeWalk:
                     if closest_node is not None:
                         self.neighbours.append(closest_node)
 
+    def cell_up(self, y, x):
+        return self.maze[y - 1][x]
+
+    def cell_down(self, y, x):
+        return self.maze[y + 1][x]
+
+    def cell_left(self, y, x):
+        return self.maze[y][x - 1]
+
+    def cell_right(self, y, x):
+        return self.maze[y][x + 1]
+
+    def get_endpoints(self):
+        endpoints = []
+        for y, i in enumerate(self.maze):
+            for x, j in enumerate(i):
+                if y == 0 or y == self.height - 1 or x == 0 or x == self.width - 1:
+                    if j == 1:
+                        endpoints.append([y, x])
+        return endpoints
+
+    def draw_pivots(self):
+        pivots = []
+
+        for y, i in enumerate(self.maze):
+            for x, j in enumerate(i):
+                if not x == 0 and not x == self.width - 1 and not y == 0 and not y == self.height - 1:
+                    if j > 0:
+                        pivot = 0
+                        if self.cell_left(y, x) and not self.cell_right(y, x):
+                            pivot += 1
+                        elif self.cell_right(y, x) and not self.cell_left(y, x):
+                            pivot += 1
+                        elif self.cell_down(y, x) and not self.cell_up(y, x):
+                            pivot += 1
+                        elif self.cell_up(y, x) and not self.cell_down(y, x):
+                            pivot += 1
+
+                        if pivot >= 1:
+                            pivots.append([y, x])
+
+        self.pivots = pivots
+        self.pivots.extend(self.endpoints)
+
+    def create_nodes(self):
+
+        self.all_nodes = []
+
+        self.start = self.endpoints[0]
+        self.end = self.endpoints[1]
+
+        for pivot in self.pivots:
+            self.all_nodes.append(self.Node(x=pivot[1], y=pivot[0], maze=self.maze, all_pivots=self.pivots))
+
+        self.start = self.Node(x=self.start[1], y=self.start[0], maze=self.maze, all_pivots=self.pivots)
+        self.end = self.Node(x=self.end[1], y=self.end[0], maze=self.maze, all_pivots=self.pivots)
+
+        self.all_nodes.extend([self.start, self.end])
+
+        for node in self.all_nodes:
+            for idx, n in enumerate(node.neighbours):
+                for second_node in self.all_nodes:
+                    if n == [second_node.y, second_node.x]:
+                        node.neighbours[idx] = second_node
+
     def walk(self, start, end):
         if start.neighbours:
             step = random.choice(start.neighbours)
@@ -210,6 +222,32 @@ class MazeWalk:
         else:
             return False
 
+    def find_path(self):
+
+        run = True
+        attempts = 0
+
+        while run:
+            attempts += 1
+
+            print(f'Initializing nodes...')
+            self.create_nodes()
+            self.visited = [self.start]
+
+            print(f'Attempt #{attempts}. Building path...')
+            result = self.walk(self.start, self.end)
+
+            if result:
+                print(f'\nSolved! {attempts} attempt(s) elapsed.\n')
+                print('Winner path: ')
+                for step in self.visited:
+                    print(step)
+                    self.maze[step.y][step.x] = 180
+                break
+            else:
+                print("Dead end.\n")
+                del self.all_nodes
+
 
 if __name__ == "__main__":
 
@@ -229,38 +267,24 @@ if __name__ == "__main__":
 
     print('Searching for in and out points...')
     try:
-        endpoints = MazePointer.get_endpoints(source_matrix)
+        maze_map = MazePathfinder(source_matrix)
     except Exception as e:
         print(e)
         raise SystemExit
 
-    print('Marking pivot points\n')
+    print('Marking pivot points...\n')
     try:
-        pivots = MazePointer.draw_pivots(source_matrix)
+        maze_map.draw_pivots()
     except Exception as e:
         print(e)
         raise SystemExit
 
-    run = True
-    attempts = 0
-
-    while run:
-        attempts += 1
-
-        print(f'Initializing nodes... Attempt #{attempts}...')
-        maze_nodes = MazeWalk(maze=source_matrix, endpoints=endpoints, pivots=pivots)
-        print(f'Building path... {attempts}')
-        result = maze_nodes.walk(maze_nodes.start, maze_nodes.end)
-
-        if result:
-            print(f'\nSolved! {attempts} attempt(s) elapsed.\n')
-            print('Winner path: ')
-            for step in maze_nodes.visited:
-                print(step)
-                source_matrix[step.y][step.x] = 180
-            break
-        else:
-            print("Dead end.")
+    print('Trying to solve...\n')
+    try:
+        maze_map.find_path()
+    except Exception as e:
+        print(e)
+        raise SystemExit
 
     print(f'\nSaving path to {output_file}')
     try:
